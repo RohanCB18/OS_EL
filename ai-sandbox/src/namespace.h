@@ -6,5 +6,7 @@ int create_mount_namespace(void);
 
 // Hide a directory inside the mount namespace
 int hide_directory(const char *path);
+// Hide a single file
+int hide_file(const char *path);
 
 #endif
