@@ -1,0 +1,7 @@
+# build outputs
+ai-sandbox
+*.o
+
+# editor
+.vscode/
+.cursor/
