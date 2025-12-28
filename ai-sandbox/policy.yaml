@@ -1,0 +1,4 @@
+protected_files:
+  - /home/rohan/.ssh
+  - /home/rohan/.env
+  - /home/rohan/.aws

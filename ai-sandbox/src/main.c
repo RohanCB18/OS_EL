@@ -3,10 +3,12 @@
 #include <unistd.h>
 
 #include "namespace.h"
+#include "policy.h"
+#include "network.h"
+#include "firewall.h"  
 
 /*
  * Ensure the program is run with root privileges.
- * Required for unshare() and mount().
  */
 void check_root(void)
 {
@@ -18,51 +20,13 @@ void check_root(void)
 }
 
 /*
- * Hide sensitive directories from the sandboxed process.
- * These paths will appear empty inside the mount namespace.
- *
- * NOTE: Replace /home/rohan if your username is different.
- */
-void hide_sensitive_directories(void)
-{
-    const char *username = getenv("SUDO_USER");
-
-    if (username == NULL)
-    {
-        fprintf(stderr, "[!] Warning: Could not detect original username\n");
-        return;
-    }
-
-    printf("[+] Detected user: %s\n", username);
-
-    char ssh_path[256];
-    char env_path[256];
-    char aws_path[256];
-
-    snprintf(ssh_path, sizeof(ssh_path), "/home/%s/.ssh", username);
-    snprintf(env_path, sizeof(env_path), "/home/%s/.env", username);
-    snprintf(aws_path, sizeof(aws_path), "/home/%s/.aws", username);
-
-    // Hide directories
-    hide_directory(ssh_path);
-    hide_directory(aws_path);
-
-    // Hide individual file
-    hide_file(env_path);
-}
-
-/*
  * Launch an interactive shell inside the sandbox.
- * execl() replaces the current process, so the shell
- * inherits the mount namespace.
  */
 void spawn_shell(void)
 {
     printf("[+] Launching sandboxed shell...\n");
-
     execl("/bin/bash", "/bin/bash", NULL);
 
-    // This line executes only if execl fails
     perror("execl");
     exit(EXIT_FAILURE);
 }
@@ -71,13 +35,42 @@ int main(void)
 {
     check_root();
 
+    /* 1. Create mount namespace (filesystem isolation) */
     if (create_mount_namespace() != 0)
     {
         fprintf(stderr, "Failed to create mount namespace\n");
         return EXIT_FAILURE;
     }
 
-    hide_sensitive_directories();
+    /* 2. Create network namespace (network isolation) */
+    if (create_network_namespace() != 0)
+    {
+        fprintf(stderr, "Failed to create network namespace\n");
+        return EXIT_FAILURE;
+    }
+
+    setup_loopback();   // Enable loopback inside namespace
+
+    /* 3. Apply firewall rules (deny all except loopback) */
+    setup_firewall();
+
+    /* 4. Load security policy */
+    Policy policy;
+    if (load_policy("policy.yaml", &policy) != 0)
+    {
+        fprintf(stderr, "Failed to load policy\n");
+        return EXIT_FAILURE;
+    }
+
+    print_policy(&policy);
+
+    /* 5. Enforce file restrictions from policy */
+    for (int i = 0; i < policy.protected_count; i++)
+    {
+        hide_directory(policy.protected_files[i]);
+    }
+
+    /* 6. Run tool inside sandbox */
     spawn_shell();
 
     return EXIT_SUCCESS;

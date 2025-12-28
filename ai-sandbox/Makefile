@@ -1,13 +1,21 @@
-CC	=	gcc
-CFLAGS =	-Wall -Wextra -D_GNU_SOURCE
-TARGET =	ai-sandbox
-SRCS =	src/main.c src/namespace.c
-OBJS =	$(SRCS:.c=.o)
+CC      = gcc
+CFLAGS  = -Wall -Wextra -D_GNU_SOURCE
+LDFLAGS = -lyaml
+
+TARGET  = sandbox
+
+SRCS =  src/main.c \
+        src/namespace.c \
+        src/policy.c \
+        src/network.c \
+        src/firewall.c
+
+OBJS = $(SRCS:.c=.o)
 
 all: $(TARGET)
 
-$(TARGET):	$(OBJS)
-	$(CC)	$(CFLAGS) -o $@ $^
+$(TARGET): $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 	@echo ""
 	@echo "✓ Build complete!"
 	@echo "Run with: sudo ./$(TARGET)"
