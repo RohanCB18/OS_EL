@@ -1,11 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include "namespace.h"
 #include "policy.h"
 #include "network.h"
-#include "firewall.h"  
+#include "firewall.h"
 
 /*
  * Ensure the program is run with root privileges.
@@ -49,7 +50,7 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    setup_loopback();   // Enable loopback inside namespace
+    setup_loopback(); // Enable loopback inside namespace
 
     /* 3. Apply firewall rules (deny all except loopback) */
     setup_firewall();
@@ -65,9 +66,37 @@ int main(void)
     print_policy(&policy);
 
     /* 5. Enforce file restrictions from policy */
+    /* 5. Enforce file restrictions from policy */
     for (int i = 0; i < policy.protected_count; i++)
     {
-        hide_directory(policy.protected_files[i]);
+        struct stat path_stat;
+
+        // Check if path exists and determine type
+        if (stat(policy.protected_files[i], &path_stat) == 0)
+        {
+            // Path exists - check if it's a file or directory
+            if (S_ISDIR(path_stat.st_mode))
+            {
+                // It's a directory
+                hide_directory(policy.protected_files[i]);
+            }
+            else if (S_ISREG(path_stat.st_mode))
+            {
+                // It's a regular file
+                hide_file(policy.protected_files[i]);
+            }
+            else
+            {
+                printf("[!] Warning: %s is neither file nor directory\n",
+                       policy.protected_files[i]);
+            }
+        }
+        else
+        {
+            // Path doesn't exist - try to hide anyway (user might create it later)
+            printf("[!] Note: %s does not exist, skipping\n",
+                   policy.protected_files[i]);
+        }
     }
 
     /* 6. Run tool inside sandbox */

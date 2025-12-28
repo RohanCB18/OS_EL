@@ -1,4 +1,19 @@
+# AI Sandbox Security Policy
+# This file defines what the AI agent can and cannot access
+
+# Files and directories to HIDE from the AI agent
+# The agent will see these as "No such file or directory"
 protected_files:
-  - /home/rohan/.ssh
-  - /home/rohan/.env
-  - /home/rohan/.aws
+  - /home/USERNAME/.ssh
+  - /home/USERNAME/.env
+  - /home/USERNAME/.aws
+  - /home/USERNAME/.gnupg
+  - /home/USERNAME/.config/gh
+
+# FUTURE: Networks the AI can access (Phase 3)
+# allowed_networks:
+#   - github.com
+#   - pypi.org
+
+# Default policy: DENY all network traffic
+default_network_policy: DENY
