@@ -21,6 +21,20 @@ void check_root(void)
 }
 
 /*
+ * Get the real user who invoked sudo
+ */
+const char *get_real_user(void)
+{
+    const char *user = getenv("SUDO_USER");
+    if (!user)
+    {
+        fprintf(stderr, "[!] Error: SUDO_USER not set. Run using sudo.\n");
+        exit(EXIT_FAILURE);
+    }
+    return user;
+}
+
+/*
  * Launch an interactive shell inside the sandbox.
  */
 void spawn_shell(void)
@@ -50,7 +64,7 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    setup_loopback(); // Enable loopback inside namespace
+    setup_loopback();   // Enable loopback inside namespace
 
     /* 3. Apply firewall rules (deny all except loopback) */
     setup_firewall();
@@ -66,36 +80,45 @@ int main(void)
     print_policy(&policy);
 
     /* 5. Enforce file restrictions from policy */
-    /* 5. Enforce file restrictions from policy */
+    const char *user = get_real_user();
+
     for (int i = 0; i < policy.protected_count; i++)
     {
+        char resolved_path[512];
         struct stat path_stat;
 
-        // Check if path exists and determine type
-        if (stat(policy.protected_files[i], &path_stat) == 0)
+        /* Expand ~ to /home/<real-user> */
+        if (policy.protected_files[i][0] == '~')
         {
-            // Path exists - check if it's a file or directory
+            snprintf(resolved_path, sizeof(resolved_path),
+                     "/home/%s%s", user,
+                     policy.protected_files[i] + 1);
+        }
+        else
+        {
+            snprintf(resolved_path, sizeof(resolved_path),
+                     "%s", policy.protected_files[i]);
+        }
+
+        if (stat(resolved_path, &path_stat) == 0)
+        {
             if (S_ISDIR(path_stat.st_mode))
             {
-                // It's a directory
-                hide_directory(policy.protected_files[i]);
+                hide_directory(resolved_path);
             }
             else if (S_ISREG(path_stat.st_mode))
             {
-                // It's a regular file
-                hide_file(policy.protected_files[i]);
+                hide_file(resolved_path);
             }
             else
             {
                 printf("[!] Warning: %s is neither file nor directory\n",
-                       policy.protected_files[i]);
+                       resolved_path);
             }
         }
         else
         {
-            // Path doesn't exist - try to hide anyway (user might create it later)
-            printf("[!] Note: %s does not exist, skipping\n",
-                   policy.protected_files[i]);
+            printf("[!] Note: %s does not exist, skipping\n", resolved_path);
         }
     }
 
