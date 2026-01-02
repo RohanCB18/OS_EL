@@ -1,6 +1,4 @@
 # AI Sandbox Security Policy
-# This file defines what the AI agent can and cannot access
-
 protected_files:
   - ~/.ssh
   - ~/.env
@@ -8,5 +6,4 @@ protected_files:
   - ~/.gnupg
   - ~/.config/gh
 
-# Default policy: DENY all network traffic
 default_network_policy: DENY

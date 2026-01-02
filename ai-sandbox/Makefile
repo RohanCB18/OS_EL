@@ -2,7 +2,8 @@ CC      = gcc
 CFLAGS  = -Wall -Wextra -D_GNU_SOURCE
 LDFLAGS = -lyaml
 
-TARGET  = sandbox
+TARGET  = ai-run
+
 
 SRCS =  src/main.c \
         src/namespace.c \
