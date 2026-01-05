@@ -62,14 +62,14 @@ static int whitelist_domain(const char *domain)
 
         inet_ntop(p->ai_family, addr, ip_str, sizeof(ip_str));
         
-        /* Add iptables rule for this IP */
+        /* Add iptables rule for this IP - INSERT at top for priority */
         snprintf(cmd, sizeof(cmd),
-                 "iptables -A OUTPUT -d %s -p tcp --dport 443 -j ACCEPT 2>/dev/null",
+                 "iptables -I OUTPUT 1 -d %s -p tcp --dport 443 -j ACCEPT 2>/dev/null",
                  ip_str);
         run_cmd(cmd);
         
         snprintf(cmd, sizeof(cmd),
-                 "iptables -A OUTPUT -d %s -p tcp --dport 80 -j ACCEPT 2>/dev/null",
+                 "iptables -I OUTPUT 1 -d %s -p tcp --dport 80 -j ACCEPT 2>/dev/null",
                  ip_str);
         run_cmd(cmd);
 
@@ -102,15 +102,15 @@ static int whitelist_ip(const char *ip)
     
     printf("[+] Whitelisting IP: %s\n", ip);
     
-    /* Allow HTTPS */
+    /* Allow HTTPS - INSERT at top for priority */
     snprintf(cmd, sizeof(cmd),
-             "iptables -A OUTPUT -d %s -p tcp --dport 443 -j ACCEPT",
+             "iptables -I OUTPUT 1 -d %s -p tcp --dport 443 -j ACCEPT",
              ip);
     run_cmd(cmd);
     
     /* Allow HTTP */
     snprintf(cmd, sizeof(cmd),
-             "iptables -A OUTPUT -d %s -p tcp --dport 80 -j ACCEPT",
+             "iptables -I OUTPUT 1 -d %s -p tcp --dport 80 -j ACCEPT",
              ip);
     run_cmd(cmd);
     
@@ -119,6 +119,17 @@ static int whitelist_ip(const char *ip)
 
 /*
  * Setup firewall with policy-based whitelist
+ * 
+ * STRATEGY:
+ * 1. Flush all rules
+ * 2. Set default policy to DROP (blocks everything not explicitly allowed)
+ * 3. Allow loopback, DNS, ICMP
+ * 4. For whitelisted domains: INSERT ACCEPT rules at TOP
+ * 5. REJECT (not DROP) HTTP/HTTPS to give fast failure
+ * 
+ * REJECT vs DROP:
+ * - DROP: Connection hangs until timeout (60+ seconds)
+ * - REJECT: Connection fails immediately with "Connection refused"
  */
 int setup_firewall_with_policy(const Policy *policy)
 {
@@ -128,30 +139,30 @@ int setup_firewall_with_policy(const Policy *policy)
     run_cmd("iptables -F 2>/dev/null");
     run_cmd("iptables -X 2>/dev/null");
 
-    /* Set default policies - DROP everything */
+    /* Set default policies to DROP - this is the fail-safe */
     run_cmd("iptables -P INPUT DROP");
     run_cmd("iptables -P OUTPUT DROP");
     run_cmd("iptables -P FORWARD DROP");
+
+    /* === ALLOW RULES (order matters - first match wins) === */
 
     /* Allow ALL loopback traffic */
     run_cmd("iptables -A INPUT -i lo -j ACCEPT");
     run_cmd("iptables -A OUTPUT -o lo -j ACCEPT");
 
-    /* Allow established and related connections (for replies) */
-    run_cmd("iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT");
-    run_cmd("iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT");
+    /* Allow established and related connections (for replies to allowed traffic) */
+    run_cmd("iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT");
+    run_cmd("iptables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT");
 
     /* Allow DNS (required for domain resolution) */
     run_cmd("iptables -A OUTPUT -p udp --dport 53 -j ACCEPT");
     run_cmd("iptables -A OUTPUT -p tcp --dport 53 -j ACCEPT");
-    run_cmd("iptables -A INPUT -p udp --sport 53 -j ACCEPT");
-    run_cmd("iptables -A INPUT -p tcp --sport 53 -j ACCEPT");
 
     /* Allow ICMP (ping) - useful for debugging */
     run_cmd("iptables -A OUTPUT -p icmp -j ACCEPT");
     run_cmd("iptables -A INPUT -p icmp -j ACCEPT");
 
-    /* Process whitelist from policy */
+    /* Process whitelist from policy - these get priority via INSERT */
     if (policy->whitelist_count > 0)
     {
         printf("[+] Processing network whitelist (%d entries)...\n", policy->whitelist_count);
@@ -179,9 +190,21 @@ int setup_firewall_with_policy(const Policy *policy)
         run_cmd("iptables -A OUTPUT -p tcp --dport 443 -j ACCEPT");
         run_cmd("iptables -A OUTPUT -p tcp --dport 80 -j ACCEPT");
     }
+    else
+    {
+        /* === REJECT RULES (fast failure for non-whitelisted) === */
+        /* REJECT sends RST packet = immediate "Connection refused" */
+        printf("[+] Adding REJECT rules for non-whitelisted traffic\n");
+        run_cmd("iptables -A OUTPUT -p tcp --dport 443 -j REJECT --reject-with tcp-reset");
+        run_cmd("iptables -A OUTPUT -p tcp --dport 80 -j REJECT --reject-with tcp-reset");
+    }
+
+    /* Final catch-all REJECT for any other traffic */
+    run_cmd("iptables -A OUTPUT -p tcp -j REJECT --reject-with tcp-reset");
+    run_cmd("iptables -A OUTPUT -p udp -j REJECT --reject-with icmp-port-unreachable");
 
     printf("[+] Firewall configured:\n");
-    printf("    - Default: DENY all\n");
+    printf("    - Default: REJECT (immediate failure)\n");
     printf("    - Allow: loopback, DNS, ICMP\n");
     if (policy->whitelist_count > 0)
     {
@@ -193,7 +216,7 @@ int setup_firewall_with_policy(const Policy *policy)
     }
     else
     {
-        printf("    - HTTP/HTTPS: whitelist only\n");
+        printf("    - HTTP/HTTPS: whitelist only (others rejected)\n");
     }
 
     return 0;

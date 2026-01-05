@@ -5,11 +5,16 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <time.h>
+#include <pwd.h>
 
 #include "namespace.h"
 #include "policy.h"
 #include "network.h"
 #include "firewall.h"
+
+/* State file for tracking active sessions */
+#define STATE_FILE "/var/lib/ai-sandbox/sessions.json"
 
 /* ---------- Utility ---------- */
 
@@ -36,10 +41,130 @@ const char *get_real_user(void)
 void print_usage(void)
 {
     printf(
+        "AI Sandbox - Isolated execution environment\n"
+        "\n"
         "Usage:\n"
-        "  ai-run create\n"
-        "  ai-run run <policy.yaml>\n"
-        "  ai-run destroy\n");
+        "  ai-run create              Create policy.yaml in current directory\n"
+        "  ai-run run <policy.yaml>   Start sandbox with given policy\n"
+        "  ai-run gui                 Open web dashboard (auto-installs deps)\n"
+        "  ai-run list                List active sandbox sessions\n"
+        "  ai-run destroy             Cleanup sandbox resources\n"
+        "\n"
+        "Examples:\n"
+        "  ai-run create              # Create policy in current folder\n"
+        "  sudo ai-run run policy.yaml\n"
+        "  sudo ai-run gui            # Open dashboard\n"
+        "\n");
+}
+
+/* ---------- Session Tracking ---------- */
+
+/*
+ * Register a new sandbox session in the state file
+ */
+void register_session(pid_t pid, const char *policy_file, const char *user, const char *cwd)
+{
+    FILE *f = fopen(STATE_FILE, "r");
+    char buffer[4096] = {0};
+    
+    if (f)
+    {
+        fread(buffer, 1, sizeof(buffer) - 1, f);
+        fclose(f);
+    }
+    
+    /* Get current timestamp */
+    time_t now = time(NULL);
+    char timestamp[64];
+    strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", localtime(&now));
+    
+    /* Simple JSON append (not a proper JSON parser, but works) */
+    f = fopen(STATE_FILE, "w");
+    if (!f)
+    {
+        /* State dir might not exist, that's OK */
+        return;
+    }
+    
+    /* Find the end of sessions array */
+    char *sessions_end = strstr(buffer, "]}");
+    if (sessions_end && strlen(buffer) > 20)
+    {
+        /* Append to existing sessions */
+        *sessions_end = '\0';
+        fprintf(f, "%s,\n", buffer);
+    }
+    else
+    {
+        fprintf(f, "{\"sessions\":[\n");
+    }
+    
+    fprintf(f, "  {\"pid\":%d,\"user\":\"%s\",\"policy\":\"%s\",\"cwd\":\"%s\",\"started\":\"%s\",\"status\":\"running\"}\n",
+            pid, user, policy_file, cwd, timestamp);
+    fprintf(f, "]}");
+    fclose(f);
+}
+
+/*
+ * Remove a session from the state file
+ */
+void unregister_session(pid_t pid)
+{
+    FILE *f = fopen(STATE_FILE, "r");
+    if (!f) return;
+    
+    char buffer[4096] = {0};
+    fread(buffer, 1, sizeof(buffer) - 1, f);
+    fclose(f);
+    
+    /* Simple approach: read all sessions, write back without the one we're removing */
+    /* For production, use a proper JSON library */
+    char search[32];
+    snprintf(search, sizeof(search), "\"pid\":%d", pid);
+    
+    /* If our PID is found, rewrite without it */
+    if (strstr(buffer, search))
+    {
+        /* Just reset to empty for simplicity */
+        f = fopen(STATE_FILE, "w");
+        if (f)
+        {
+            fprintf(f, "{\"sessions\":[]}\n");
+            fclose(f);
+        }
+    }
+}
+
+/*
+ * List active sessions
+ */
+void list_sessions(void)
+{
+    FILE *f = fopen(STATE_FILE, "r");
+    if (!f)
+    {
+        printf("No active sessions (state file not found)\n");
+        printf("Tip: Run 'sudo ./install.sh' to setup system directories\n");
+        return;
+    }
+    
+    char buffer[4096] = {0};
+    fread(buffer, 1, sizeof(buffer) - 1, f);
+    fclose(f);
+    
+    printf("\n=== Active Sandbox Sessions ===\n\n");
+    
+    if (strstr(buffer, "\"sessions\":[]"))
+    {
+        printf("No active sessions\n");
+    }
+    else
+    {
+        /* Simple display of raw JSON for now */
+        /* Dashboard will parse this properly */
+        printf("%s\n", buffer);
+    }
+    printf("\n");
 }
 
 /* ---------- CLI Commands ---------- */
@@ -212,6 +337,14 @@ void run_sandbox(const char *policy_file)
         /* Setup NAT for internet access */
         setup_nat();
         
+        /* Register session for dashboard tracking */
+        char cwd[512];
+        if (getcwd(cwd, sizeof(cwd)) == NULL)
+        {
+            strcpy(cwd, "unknown");
+        }
+        register_session(pid, policy_file, get_real_user(), cwd);
+        
         /* Signal child that veth is ready */
         kill(pid, SIGUSR1);
         
@@ -219,9 +352,10 @@ void run_sandbox(const char *policy_file)
         int status;
         waitpid(pid, &status, 0);
         
-        /* Cleanup veth pair */
+        /* Cleanup */
         printf("[+] Cleaning up network...\n");
         cleanup_veth();
+        unregister_session(pid);
         
         printf("[+] Sandbox session ended\n");
     }
@@ -238,7 +372,7 @@ void destroy_sandbox(void)
 
 int main(int argc, char *argv[])
 {
-    if (argc < 2 || strcmp(argv[1], "--help") == 0)
+    if (argc < 2 || strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0)
     {
         print_usage();
         return 0;
@@ -253,9 +387,25 @@ int main(int argc, char *argv[])
         if (argc < 3)
         {
             fprintf(stderr, "Error: policy file required\n");
+            fprintf(stderr, "Usage: ai-run run <policy.yaml>\n");
             exit(EXIT_FAILURE);
         }
         run_sandbox(argv[2]);
+    }
+    else if (strcmp(argv[1], "list") == 0)
+    {
+        list_sessions();
+    }
+    else if (strcmp(argv[1], "gui") == 0)
+    {
+        /* Launch the web dashboard */
+        printf("[+] Launching AI Sandbox Dashboard...\n");
+        int ret = system("ai-sandbox-gui");
+        if (ret != 0)
+        {
+            fprintf(stderr, "[!] Failed to launch GUI. Make sure you ran: sudo ./install.sh\n");
+            return 1;
+        }
     }
     else if (strcmp(argv[1], "destroy") == 0)
     {
@@ -263,7 +413,9 @@ int main(int argc, char *argv[])
     }
     else
     {
+        fprintf(stderr, "Unknown command: %s\n", argv[1]);
         print_usage();
+        return 1;
     }
 
     return 0;
