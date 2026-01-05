@@ -18,7 +18,7 @@ DEFAULT_POLICY_PATH = "/etc/ai-sandbox/default-policy.yaml"
 # Page configuration
 st.set_page_config(
     page_title="AI Sandbox Dashboard",
-    page_icon="🔒",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -180,12 +180,12 @@ def get_policy_files():
 def render_sidebar():
     """Render sidebar navigation"""
     with st.sidebar:
-        st.markdown("## 🔒 AI Sandbox")
+        st.markdown("## AI Sandbox")
         st.markdown("---")
         
         page = st.radio(
             "Navigation",
-            ["📊 Dashboard", "📝 Policy Editor", "🚀 Quick Actions", "ℹ️ Help"],
+            ["Dashboard", "Policy Editor", "Quick Actions", "Help"],
             label_visibility="collapsed"
         )
         
@@ -206,7 +206,7 @@ def render_sidebar():
 
 def render_dashboard():
     """Render main dashboard view"""
-    st.markdown('<p class="main-header">🔒 AI Sandbox Dashboard</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-header">AI Sandbox Dashboard</p>', unsafe_allow_html=True)
     st.markdown("Monitor and manage your isolated AI execution environments")
     
     # Metrics row
@@ -235,7 +235,7 @@ def render_dashboard():
     with col3:
         st.markdown("""
         <div class="metric-card">
-            <div class="metric-value">✓</div>
+            <div class="metric-value">OK</div>
             <div class="metric-label">System Status</div>
         </div>
         """, unsafe_allow_html=True)
@@ -251,7 +251,7 @@ def render_dashboard():
     st.markdown("---")
     
     # Active sandboxes
-    st.markdown("### 🖥️ Active Sandbox Sessions")
+    st.markdown("### Active Sandbox Sessions")
     
     if not sessions or active == 0:
         st.info("No active sandboxes. Start one from the Quick Actions page!")
@@ -261,23 +261,23 @@ def render_dashboard():
                 with st.container():
                     st.markdown(f"""
                     <div class="sandbox-card">
-                        <h4>🔒 Sandbox PID: {session.get('pid', 'N/A')}</h4>
+                        <h4>Sandbox PID: {session.get('pid', 'N/A')}</h4>
                         <p><strong>User:</strong> {session.get('user', 'unknown')}</p>
                         <p><strong>Policy:</strong> <code>{session.get('policy', 'N/A')}</code></p>
                         <p><strong>Directory:</strong> <code>{session.get('cwd', 'N/A')}</code></p>
                         <p><strong>Started:</strong> {session.get('started', 'N/A')}</p>
-                        <p><span class="status-running">● Running</span></p>
+                        <p><span class="status-running">* Running</span></p>
                     </div>
                     """, unsafe_allow_html=True)
     
     # Refresh button
-    if st.button("🔄 Refresh"):
+    if st.button("Refresh"):
         st.rerun()
 
 
 def render_policy_editor():
     """Render policy editor view"""
-    st.markdown('<p class="main-header">📝 Policy Editor</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-header">Policy Editor</p>', unsafe_allow_html=True)
     st.markdown("View and edit sandbox security policies")
     
     # Policy file selector
@@ -300,7 +300,7 @@ def render_policy_editor():
     
     with col2:
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("📂 Browse..."):
+        if st.button("Browse..."):
             st.info("Enter the path manually above")
     
     if selected_policy and os.path.exists(selected_policy):
@@ -310,27 +310,27 @@ def render_policy_editor():
             st.markdown("---")
             
             # Visual editor
-            tab1, tab2 = st.tabs(["🎨 Visual Editor", "📄 Raw YAML"])
+            tab1, tab2 = st.tabs(["Visual Editor", "Raw YAML"])
             
             with tab1:
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    st.markdown("#### 📁 Protected Files")
+                    st.markdown("#### Protected Files")
                     protected_files = policy.get('protected_files', [])
                     
                     for i, pf in enumerate(protected_files):
                         st.text_input(f"Path {i+1}", value=pf, key=f"pf_{i}", disabled=True)
                     
                     new_protected = st.text_input("Add new protected path", key="new_protected")
-                    if st.button("➕ Add Path") and new_protected:
+                    if st.button("+ Add Path") and new_protected:
                         protected_files.append(new_protected)
                         policy['protected_files'] = protected_files
                         save_policy(selected_policy, policy)
                         st.rerun()
                 
                 with col2:
-                    st.markdown("#### 🌐 Network Whitelist")
+                    st.markdown("#### Network Whitelist")
                     whitelist = policy.get('network_whitelist', [])
                     
                     for i, domain in enumerate(whitelist):
@@ -339,7 +339,7 @@ def render_policy_editor():
                             st.text_input(f"Domain {i+1}", value=domain, key=f"wl_{i}", disabled=True)
                     
                     new_domain = st.text_input("Add new domain/IP", key="new_domain")
-                    if st.button("➕ Add Domain") and new_domain:
+                    if st.button("+ Add Domain") and new_domain:
                         whitelist.append(new_domain)
                         policy['network_whitelist'] = whitelist
                         save_policy(selected_policy, policy)
@@ -363,7 +363,7 @@ def render_policy_editor():
                         value=policy.get('allow_all_https', False)
                     )
                 
-                if st.button("💾 Save Changes"):
+                if st.button("Save Changes"):
                     policy['default_network_policy'] = net_policy
                     policy['allow_all_https'] = allow_https
                     if save_policy(selected_policy, policy):
@@ -381,7 +381,7 @@ def render_policy_editor():
                     key="yaml_editor"
                 )
                 
-                if st.button("💾 Save YAML"):
+                if st.button("Save YAML"):
                     try:
                         # Validate YAML
                         yaml.safe_load(edited_yaml)
@@ -396,7 +396,7 @@ def render_policy_editor():
 
 def render_quick_actions():
     """Render quick actions view"""
-    st.markdown('<p class="main-header">🚀 Quick Actions</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-header">Quick Actions</p>', unsafe_allow_html=True)
     st.markdown("Common operations for managing AI sandboxes")
     
     st.markdown("---")
@@ -404,7 +404,7 @@ def render_quick_actions():
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("### 📝 Create New Policy")
+        st.markdown("### Create New Policy")
         st.markdown("Generate a default policy.yaml in the specified directory")
         
         create_dir = st.text_input(
@@ -423,7 +423,7 @@ def render_quick_actions():
                     timeout=10
                 )
                 if result.returncode == 0:
-                    st.success(f"✅ Policy created in {create_dir}")
+                    st.success(f"Policy created in {create_dir}")
                     st.code(result.stdout)
                 else:
                     st.error(f"Failed: {result.stderr}")
@@ -433,10 +433,10 @@ def render_quick_actions():
                 st.error(f"Error: {e}")
     
     with col2:
-        st.markdown("### 🧹 Cleanup Resources")
+        st.markdown("### Cleanup Resources")
         st.markdown("Remove leftover network interfaces and resources")
         
-        if st.button("🧹 Run Cleanup", key="btn_cleanup"):
+        if st.button("Run Cleanup", key="btn_cleanup"):
             try:
                 result = subprocess.run(
                     ["sudo", "ai-run", "destroy"],
@@ -444,14 +444,14 @@ def render_quick_actions():
                     text=True,
                     timeout=10
                 )
-                st.success("✅ Cleanup completed")
+                st.success("Cleanup completed")
                 st.code(result.stdout or "No output")
             except Exception as e:
                 st.error(f"Error: {e}")
     
     st.markdown("---")
     
-    st.markdown("### 🖥️ Start Sandbox")
+    st.markdown("### Start Sandbox")
     st.markdown("Launch a new sandbox session (opens in terminal)")
     
     policies = get_policy_files()
@@ -461,13 +461,13 @@ def render_quick_actions():
         
         st.code(f"sudo ai-run run {selected}", language="bash")
         
-        st.info("💡 Run this command in your terminal to start the sandbox")
+        st.info("Run this command in your terminal to start the sandbox")
     else:
         st.warning("No policy files found. Create one first!")
     
     st.markdown("---")
     
-    st.markdown("### 📋 Command Reference")
+    st.markdown("### Command Reference")
     
     st.code("""
 # Create a new policy file
@@ -486,7 +486,7 @@ sudo ai-run destroy
 
 def render_help():
     """Render help view"""
-    st.markdown('<p class="main-header">ℹ️ Help & Documentation</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-header">Help & Documentation</p>', unsafe_allow_html=True)
     
     st.markdown("""
     ## What is AI Sandbox?
@@ -494,9 +494,9 @@ def render_help():
     AI Sandbox is a security tool that creates isolated execution environments for AI agents.
     It provides:
     
-    - **🔒 File Protection** - Hide sensitive files (SSH keys, AWS credentials, etc.)
-    - **🌐 Network Isolation** - Control which domains AI can access
-    - **📋 Policy-Based Control** - Configure via simple YAML files
+    - **File Protection** - Hide sensitive files (SSH keys, AWS credentials, etc.)
+    - **Network Isolation** - Control which domains AI can access
+    - **Policy-Based Control** - Configure via simple YAML files
     
     ---
     
@@ -561,13 +561,13 @@ def main():
     """Main application entry point"""
     page = render_sidebar()
     
-    if page == "📊 Dashboard":
+    if page == "Dashboard":
         render_dashboard()
-    elif page == "📝 Policy Editor":
+    elif page == "Policy Editor":
         render_policy_editor()
-    elif page == "🚀 Quick Actions":
+    elif page == "Quick Actions":
         render_quick_actions()
-    elif page == "ℹ️ Help":
+    elif page == "Help":
         render_help()
 
 
