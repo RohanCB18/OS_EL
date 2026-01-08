@@ -4,7 +4,7 @@ A security tool that creates isolated execution environments for AI agents with 
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Step 1: Install
 
@@ -60,6 +60,7 @@ sudo ai-run run policy.yaml
 ```
 
 You're now inside an isolated environment:
+
 - 🔒 Protected files are hidden
 - 🌐 Only whitelisted domains are accessible
 - ⚡ Blocked connections fail instantly
@@ -74,13 +75,13 @@ exit
 
 ## 📋 Command Reference
 
-| Command | Description | Requires sudo |
-|---------|-------------|---------------|
-| `ai-run create` | Create policy.yaml in current directory | No |
-| `ai-run run <policy>` | Start sandbox with policy | Yes |
-| `ai-run gui` | Open web dashboard | Yes (first run) |
-| `ai-run list` | Show active sandbox sessions | No |
-| `ai-run destroy` | Cleanup leftover resources | Yes |
+| Command               | Description                             | Requires sudo   |
+| --------------------- | --------------------------------------- | --------------- |
+| `ai-run create`       | Create policy.yaml in current directory | No              |
+| `ai-run run <policy>` | Start sandbox with policy               | Yes             |
+| `ai-run gui`          | Open web dashboard                      | Yes (first run) |
+| `ai-run list`         | Show active sandbox sessions            | No              |
+| `ai-run destroy`      | Cleanup leftover resources              | Yes             |
 
 ---
 
@@ -95,6 +96,7 @@ sudo ai-run gui
 Open http://localhost:8501 in your browser.
 
 **Features:**
+
 - View active sandboxes
 - Edit policy files visually
 - Quick create/destroy actions
@@ -131,15 +133,17 @@ exit
 ## 🔒 What Gets Protected
 
 ### Files (Hidden from sandbox)
-| Default Protected | Description |
-|-------------------|-------------|
-| `~/.ssh` | SSH keys |
-| `~/.aws` | AWS credentials |
-| `~/.gnupg` | GPG keys |
-| `~/.env` | Environment files |
-| `~/.config/gh` | GitHub CLI tokens |
+
+| Default Protected | Description       |
+| ----------------- | ----------------- |
+| `~/.ssh`          | SSH keys          |
+| `~/.aws`          | AWS credentials   |
+| `~/.gnupg`        | GPG keys          |
+| `~/.env`          | Environment files |
+| `~/.config/gh`    | GitHub CLI tokens |
 
 ### Network (Blocked by default)
+
 - All outbound connections except whitelisted domains
 - Blocked connections fail immediately (no timeout)
 
@@ -148,6 +152,7 @@ exit
 ## 🌐 Network Whitelist Examples
 
 ### For Python Development
+
 ```yaml
 network_whitelist:
   - pypi.org
@@ -156,6 +161,7 @@ network_whitelist:
 ```
 
 ### For Node.js Development
+
 ```yaml
 network_whitelist:
   - registry.npmjs.org
@@ -163,6 +169,7 @@ network_whitelist:
 ```
 
 ### For AI/ML Agents
+
 ```yaml
 network_whitelist:
   - api.openai.com
@@ -171,6 +178,7 @@ network_whitelist:
 ```
 
 ### Allow Everything (Testing)
+
 ```yaml
 allow_all_https: true
 ```
@@ -180,6 +188,7 @@ allow_all_https: true
 ## 🛠️ Troubleshooting
 
 ### "ai-run: command not found"
+
 ```bash
 # Run install script
 cd /path/to/ai-sandbox
@@ -187,12 +196,14 @@ sudo ./install.sh
 ```
 
 ### "Permission denied"
+
 ```bash
 # Use sudo for sandbox operations
 sudo ai-run run policy.yaml
 ```
 
 ### Connections hang instead of failing fast
+
 ```bash
 # Rebuild and reinstall
 cd /path/to/ai-sandbox
@@ -201,6 +212,7 @@ sudo ./install.sh
 ```
 
 ### Dashboard won't start
+
 ```bash
 # Ensure Python 3 is installed
 python3 --version
@@ -213,13 +225,13 @@ sudo ai-run gui
 
 ## 📂 File Locations
 
-| Path | Description |
-|------|-------------|
-| `/usr/local/bin/ai-run` | Main binary |
-| `/usr/local/bin/ai-sandbox-gui` | Dashboard launcher |
-| `/etc/ai-sandbox/` | Default config templates |
-| `/var/lib/ai-sandbox/` | State and Python venv |
-| `/usr/share/ai-sandbox/dashboard/` | Web dashboard source |
+| Path                               | Description              |
+| ---------------------------------- | ------------------------ |
+| `/usr/local/bin/ai-run`            | Main binary              |
+| `/usr/local/bin/ai-sandbox-gui`    | Dashboard launcher       |
+| `/etc/ai-sandbox/`                 | Default config templates |
+| `/var/lib/ai-sandbox/`             | State and Python venv    |
+| `/usr/share/ai-sandbox/dashboard/` | Web dashboard source     |
 
 ---
 

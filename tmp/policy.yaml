@@ -1,0 +1,21 @@
+# AI Sandbox Security Policy
+
+# Files/directories to hide from the sandbox
+protected_files:
+  - ~/.ssh
+  - ~/.env
+  - ~/.aws
+  - ~/.gnupg
+  - ~/.config/gh
+
+# Network policy: DENY (whitelist only) or ALLOW (all)
+default_network_policy: DENY
+
+# Whitelisted domains/IPs (when policy is DENY)
+network_whitelist:
+  - github.com
+  - api.github.com
+  - pypi.org
+
+# Set to true to allow all HTTPS regardless of whitelist
+allow_all_https: false
