@@ -24,6 +24,10 @@ typedef struct {
     
     /* Allow all HTTPS (when domain filtering not possible) */
     int allow_all_https;
+    
+    /* Blocked system calls (seccomp) */
+    char blocked_syscalls[MAX_PATHS][MAX_LEN];
+    int blocked_syscalls_count;
 } Policy;
 
 int load_policy(const char *filename, Policy *policy);

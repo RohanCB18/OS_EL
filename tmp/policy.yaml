@@ -19,3 +19,7 @@ network_whitelist:
 
 # Set to true to allow all HTTPS regardless of whitelist
 allow_all_https: false
+
+# System calls to block (advanced)
+blocked_syscalls:
+  - ptrace    # Prevents debugging/tracing

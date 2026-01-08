@@ -12,6 +12,7 @@
 #include "policy.h"
 #include "network.h"
 #include "firewall.h"
+#include "seccomp.h"
 
 /* State file for tracking active sessions */
 #define STATE_FILE "/var/lib/ai-sandbox/sessions.json"
@@ -199,11 +200,16 @@ void create_default_policy(void)
         "  - pypi.org\n"
         "\n"
         "# Set to true to allow all HTTPS regardless of whitelist\n"
-        "allow_all_https: false\n");
+        "allow_all_https: false\n"
+        "\n"
+        "# System calls to block (advanced)\n"
+        "blocked_syscalls:\n"
+        "  - ptrace    # Prevents debugging/tracing\n");
 
     fclose(f);
     printf("[+] Default policy.yaml created\n");
     printf("[+] Edit network_whitelist to add allowed domains\n");
+    printf("[+] Edit blocked_syscalls to customize syscall restrictions\n");
 }
 
 /*
@@ -299,12 +305,19 @@ void run_sandbox(const char *policy_file)
             }
         }
         
-        /* 8. Launch sandbox shell */
+        /* 8. Apply seccomp filter (syscall restrictions) */
+        setup_seccomp_filter(&policy);
+        
+        /* 9. Launch sandbox shell */
         printf("[+] Launching sandboxed shell...\n");
         printf("===========================================\n");
         printf("  AI SANDBOX ACTIVE\n");
         printf("  Network: Enabled with DNS\n");
         printf("  Protected files: Hidden\n");
+        if (policy.blocked_syscalls_count > 0)
+        {
+            printf("  Blocked syscalls: %d\n", policy.blocked_syscalls_count);
+        }
         printf("  Type 'exit' to leave sandbox\n");
         printf("===========================================\n");
         

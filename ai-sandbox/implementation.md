@@ -18,6 +18,9 @@ A deep dive into the OS-level concepts and libraries used to create an isolated,
 │  │   - Hidden: ~/.aws        - veth-sandbox (10.200.1.2) │  │
 │  │   - Hidden: ~/.gnupg      - Local iptables firewall   │  │
 │  │                                                       │  │
+│  │   [Seccomp Filter]                                    │  │
+│  │   - Blocked: ptrace, reboot, etc.                     │  │
+│  │                                                       │  │
 │  └───────────────────────────────────────────────────────┘  │
 │           │                            │                    │
 │           │ tmpfs mount                │ veth pair          │
@@ -211,6 +214,36 @@ Active sandbox sessions are tracked in `/var/lib/ai-sandbox/sessions.json`. This
 
 ---
 
+### 2.9 Seccomp (Secure Computing Mode)
+
+Seccomp-bpf allows filtering of system calls at the kernel level.
+
+- **Purpose**: Block dangerous syscalls like `ptrace` (debugging), `reboot`, `mount`, etc.
+- **How we use it**: We use **libseccomp** to create a filter with default-ALLOW policy, then add ERRNO rules for blocked syscalls from `policy.yaml`.
+- **Code**: `src/seccomp.c`
+
+```c
+// Create filter context - default action is ALLOW
+scmp_filter_ctx ctx = seccomp_init(SCMP_ACT_ALLOW);
+
+// Block ptrace syscall (returns EPERM)
+int syscall_nr = seccomp_syscall_resolve_name("ptrace");
+seccomp_rule_add(ctx, SCMP_ACT_ERRNO(EPERM), syscall_nr, 0);
+
+// Load filter into kernel
+seccomp_load(ctx);
+```
+
+**Policy Configuration:**
+```yaml
+blocked_syscalls:
+  - ptrace    # Prevents strace/debugging
+  - reboot    # Prevents system reboot
+  - mount     # Prevents mounting filesystems
+```
+
+---
+
 ## 3. Libraries Used
 
 | Library | Purpose | Where Used in Project |
@@ -223,6 +256,7 @@ Active sandbox sessions are tracked in `/var/lib/ai-sandbox/sessions.json`. This
 | **Streamlit** | Python web framework for the interactive dashboard | `dashboard/app.py` - Renders the web UI with session monitoring and policy editing. |
 | **PyYAML** | Python library for reading/writing YAML files | `dashboard/app.py` - Loads and saves policy files in the dashboard. |
 | **watchdog** | Python library for filesystem event monitoring | `dashboard/requirements.txt` - Potentially for live-reloading policy file changes. |
+| **libseccomp** | High-level API for seccomp-bpf syscall filtering | `src/seccomp.c` - Blocks dangerous syscalls like `ptrace`, `reboot`, `mount`. |
 
 ---
 
@@ -235,15 +269,17 @@ ai-sandbox/
 │   ├── namespace.c      # Mount namespace, file hiding (tmpfs, bind mounts)
 │   ├── network.c        # Network namespace, veth, NAT, DNS configuration
 │   ├── firewall.c       # iptables rules, domain whitelisting, REJECT logic
+│   ├── seccomp.c        # Syscall filtering using libseccomp
 │   ├── policy.c         # YAML policy parsing with libyaml
 │   ├── policy.h         # Policy struct definition
 │   ├── namespace.h      # Namespace function declarations
 │   ├── network.h        # Network function declarations
-│   └── firewall.h       # Firewall function declarations
+│   ├── firewall.h       # Firewall function declarations
+│   └── seccomp.h        # Seccomp function declarations
 ├── dashboard/
 │   ├── app.py           # Streamlit web dashboard
 │   └── requirements.txt # Python dependencies
-├── Makefile             # Build configuration (gcc, libyaml)
+├── Makefile             # Build configuration (gcc, libyaml, libseccomp)
 ├── install.sh           # System-wide installation script
 └── policy.yaml          # Default policy template
 ```
@@ -257,6 +293,7 @@ ai-sandbox/
 | **Filesystem** | Mount Namespace + tmpfs/bind-mounts | Hides sensitive files from AI process |
 | **Network** | Network Namespace + veth | Isolates sandbox from host network |
 | **Firewall** | iptables (REJECT rules) | Enforces domain whitelist, blocks unauthorized traffic immediately |
+| **Syscalls** | seccomp-bpf | Blocks dangerous syscalls (ptrace, mount, reboot) |
 | **DNS** | Custom resolv.conf | Ensures DNS works within sandbox isolation |
 | **Process** | fork + unshare | Creates isolated child process |
 
@@ -267,5 +304,7 @@ ai-sandbox/
 - [Linux Namespaces](https://man7.org/linux/man-pages/man7/namespaces.7.html)
 - [iptables Manual](https://linux.die.net/man/8/iptables)
 - [veth (Virtual Ethernet Device)](https://man7.org/linux/man-pages/man4/veth.4.html)
+- [seccomp Manual](https://man7.org/linux/man-pages/man2/seccomp.2.html)
+- [libseccomp](https://github.com/seccomp/libseccomp)
 - [libyaml Documentation](https://pyyaml.org/wiki/LibYAML)
 - [Streamlit Documentation](https://docs.streamlit.io/)

@@ -1,6 +1,6 @@
 CC      = gcc
 CFLAGS  = -Wall -Wextra -D_GNU_SOURCE
-LDFLAGS = -lyaml
+LDFLAGS = -lyaml -lseccomp
 
 TARGET  = ai-run
 
@@ -9,7 +9,8 @@ SRCS =  src/main.c \
         src/namespace.c \
         src/policy.c \
         src/network.c \
-        src/firewall.c
+        src/firewall.c \
+        src/seccomp.c
 
 OBJS = $(SRCS:.c=.o)
 

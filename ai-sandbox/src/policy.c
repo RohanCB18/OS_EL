@@ -12,7 +12,8 @@ typedef enum {
     STATE_PROTECTED_FILES,
     STATE_NETWORK_WHITELIST,
     STATE_DEFAULT_NETWORK_POLICY,
-    STATE_ALLOW_ALL_HTTPS
+    STATE_ALLOW_ALL_HTTPS,
+    STATE_BLOCKED_SYSCALLS
 } ParseState;
 
 int load_policy(const char *filename, Policy *policy)
@@ -35,6 +36,7 @@ int load_policy(const char *filename, Policy *policy)
     policy->whitelist_count = 0;
     policy->network_mode = NET_POLICY_DENY;  /* Default: deny all */
     policy->allow_all_https = 0;
+    policy->blocked_syscalls_count = 0;
 
     ParseState state = STATE_NONE;
     int expecting_value = 0;
@@ -70,6 +72,10 @@ int load_policy(const char *filename, Policy *policy)
             {
                 pending_scalar_state = STATE_ALLOW_ALL_HTTPS;
                 expecting_value = 1;
+            }
+            else if (strcmp(val, "blocked_syscalls") == 0)
+            {
+                state = STATE_BLOCKED_SYSCALLS;
             }
             else if (expecting_value)
             {
@@ -108,6 +114,13 @@ int load_policy(const char *filename, Policy *policy)
                         val, MAX_LEN - 1);
                 policy->network_whitelist[policy->whitelist_count][MAX_LEN - 1] = '\0';
                 policy->whitelist_count++;
+            }
+            else if (state == STATE_BLOCKED_SYSCALLS && policy->blocked_syscalls_count < MAX_PATHS)
+            {
+                strncpy(policy->blocked_syscalls[policy->blocked_syscalls_count],
+                        val, MAX_LEN - 1);
+                policy->blocked_syscalls[policy->blocked_syscalls_count][MAX_LEN - 1] = '\0';
+                policy->blocked_syscalls_count++;
             }
         }
 
@@ -161,6 +174,21 @@ void print_policy(const Policy *policy)
     }
     
     printf("  Allow all HTTPS: %s\n", policy->allow_all_https ? "yes" : "no");
+    
+    /* Blocked syscalls */
+    printf("\n[Syscall Restrictions]\n");
+    if (policy->blocked_syscalls_count > 0)
+    {
+        printf("  Blocked syscalls (%d):\n", policy->blocked_syscalls_count);
+        for (int i = 0; i < policy->blocked_syscalls_count; i++)
+        {
+            printf("    - %s\n", policy->blocked_syscalls[i]);
+        }
+    }
+    else
+    {
+        printf("  Blocked syscalls: (none)\n");
+    }
     
     printf("\n======================================\n\n");
 }

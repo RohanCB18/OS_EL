@@ -51,6 +51,10 @@ default_network_policy: DENY
 
 # Set true to allow all HTTPS (bypass whitelist)
 allow_all_https: false
+
+# System calls to block (advanced)
+blocked_syscalls:
+  - ptrace    # Prevents debugging/tracing
 ```
 
 ### Step 4: Start Sandbox
@@ -64,6 +68,7 @@ You're now inside an isolated environment:
 - 🔒 Protected files are hidden
 - 🌐 Only whitelisted domains are accessible
 - ⚡ Blocked connections fail instantly
+- 🛡️ Blocked syscalls return "Operation not permitted"
 
 ### Step 5: Exit Sandbox
 
@@ -147,6 +152,21 @@ exit
 - All outbound connections except whitelisted domains
 - Blocked connections fail immediately (no timeout)
 
+### System Calls (Seccomp)
+
+| Default Blocked | Description                    |
+| --------------- | ------------------------------ |
+| `ptrace`        | Prevents debugging/tracing     |
+
+You can add more syscalls to block in `policy.yaml`:
+
+```yaml
+blocked_syscalls:
+  - ptrace
+  - reboot    # Prevent system reboot
+  - mount     # Prevent mounting filesystems
+```
+
 ---
 
 ## 🌐 Network Whitelist Examples
@@ -181,6 +201,29 @@ network_whitelist:
 
 ```yaml
 allow_all_https: true
+```
+
+---
+
+## 🛡️ Syscall Blocking Examples
+
+### Block Debugging (Recommended)
+
+```yaml
+blocked_syscalls:
+  - ptrace    # Blocks strace, gdb, etc.
+```
+
+### High Security Mode
+
+```yaml
+blocked_syscalls:
+  - ptrace
+  - mount
+  - umount2
+  - reboot
+  - swapon
+  - swapoff
 ```
 
 ---
