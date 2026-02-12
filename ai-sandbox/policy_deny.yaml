@@ -1,0 +1,21 @@
+# AI Sandbox Security Policy - DENY Demo
+# This policy blocks GitHub access to demonstrate network restrictions
+
+# Files/directories to hide from the sandbox
+protected_files:
+  - ~/.env
+  - ~/.aws
+  - ~/.gnupg
+  - ~/.config/gh
+
+# Network policy: DENY (whitelist only) or ALLOW (all)
+default_network_policy: DENY
+
+# Whitelisted domains/IPs - GitHub is NOT included
+# This will cause git push/pull to fail with "Connection refused"
+network_whitelist:
+  - pypi.org
+  - registry.npmjs.org
+
+# Set to true to allow all HTTPS regardless of whitelist
+allow_all_https: false

@@ -4,9 +4,6 @@
 #include <yaml.h>
 #include "policy.h"
 
-/*
- * Parse state machine states
- */
 typedef enum {
     STATE_NONE,
     STATE_PROTECTED_FILES,
@@ -26,15 +23,15 @@ int load_policy(const char *filename, Policy *policy)
     }
 
     yaml_parser_t parser;
+
     yaml_event_t event;
 
     yaml_parser_initialize(&parser);
     yaml_parser_set_input_file(&parser, fh);
 
-    /* Initialize policy defaults */
     policy->protected_count = 0;
     policy->whitelist_count = 0;
-    policy->network_mode = NET_POLICY_DENY;  /* Default: deny all */
+    policy->network_mode = NET_POLICY_DENY;
     policy->allow_all_https = 0;
     policy->blocked_syscalls_count = 0;
 
@@ -54,7 +51,6 @@ int load_policy(const char *filename, Policy *policy)
         {
             char *val = (char *)event.data.scalar.value;
 
-            /* Check if this is a key */
             if (strcmp(val, "protected_files") == 0)
             {
                 state = STATE_PROTECTED_FILES;
@@ -79,7 +75,6 @@ int load_policy(const char *filename, Policy *policy)
             }
             else if (expecting_value)
             {
-                /* Process the value based on pending state */
                 if (pending_scalar_state == STATE_DEFAULT_NETWORK_POLICY)
                 {
                     if (strcmp(val, "ALLOW") == 0 || strcmp(val, "allow") == 0)
@@ -147,7 +142,6 @@ void print_policy(const Policy *policy)
 {
     printf("\n========== Security Policy ==========\n");
     
-    /* Protected files */
     printf("\n[File Protection]\n");
     printf("  Protected paths (%d):\n", policy->protected_count);
     for (int i = 0; i < policy->protected_count; i++)
@@ -155,7 +149,6 @@ void print_policy(const Policy *policy)
         printf("    - %s\n", policy->protected_files[i]);
     }
     
-    /* Network policy */
     printf("\n[Network Policy]\n");
     printf("  Default mode: %s\n", 
            policy->network_mode == NET_POLICY_ALLOW ? "ALLOW" : "DENY");
@@ -175,7 +168,6 @@ void print_policy(const Policy *policy)
     
     printf("  Allow all HTTPS: %s\n", policy->allow_all_https ? "yes" : "no");
     
-    /* Blocked syscalls */
     printf("\n[Syscall Restrictions]\n");
     if (policy->blocked_syscalls_count > 0)
     {

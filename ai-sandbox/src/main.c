@@ -14,10 +14,7 @@
 #include "firewall.h"
 #include "seccomp.h"
 
-/* State file for tracking active sessions */
 #define STATE_FILE "/var/lib/ai-sandbox/sessions.json"
-
-/* ---------- Utility ---------- */
 
 void check_root(void)
 {
@@ -52,17 +49,12 @@ void print_usage(void)
         "  ai-run destroy             Cleanup sandbox resources\n"
         "\n"
         "Examples:\n"
-        "  ai-run create              # Create policy in current folder\n"
+        "  ai-run create\n"
         "  sudo ai-run run policy.yaml\n"
-        "  sudo ai-run gui            # Open dashboard\n"
+        "  sudo ai-run gui\n"
         "\n");
 }
 
-/* ---------- Session Tracking ---------- */
-
-/*
- * Register a new sandbox session in the state file
- */
 void register_session(pid_t pid, const char *policy_file, const char *user, const char *cwd)
 {
     FILE *f = fopen(STATE_FILE, "r");
@@ -74,24 +66,19 @@ void register_session(pid_t pid, const char *policy_file, const char *user, cons
         fclose(f);
     }
     
-    /* Get current timestamp */
     time_t now = time(NULL);
     char timestamp[64];
     strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", localtime(&now));
     
-    /* Simple JSON append (not a proper JSON parser, but works) */
     f = fopen(STATE_FILE, "w");
     if (!f)
     {
-        /* State dir might not exist, that's OK */
         return;
     }
     
-    /* Find the end of sessions array */
     char *sessions_end = strstr(buffer, "]}");
     if (sessions_end && strlen(buffer) > 20)
     {
-        /* Append to existing sessions */
         *sessions_end = '\0';
         fprintf(f, "%s,\n", buffer);
     }
@@ -106,9 +93,6 @@ void register_session(pid_t pid, const char *policy_file, const char *user, cons
     fclose(f);
 }
 
-/*
- * Remove a session from the state file
- */
 void unregister_session(pid_t pid)
 {
     FILE *f = fopen(STATE_FILE, "r");
@@ -118,15 +102,11 @@ void unregister_session(pid_t pid)
     fread(buffer, 1, sizeof(buffer) - 1, f);
     fclose(f);
     
-    /* Simple approach: read all sessions, write back without the one we're removing */
-    /* For production, use a proper JSON library */
     char search[32];
     snprintf(search, sizeof(search), "\"pid\":%d", pid);
     
-    /* If our PID is found, rewrite without it */
     if (strstr(buffer, search))
     {
-        /* Just reset to empty for simplicity */
         f = fopen(STATE_FILE, "w");
         if (f)
         {
@@ -136,9 +116,6 @@ void unregister_session(pid_t pid)
     }
 }
 
-/*
- * List active sessions
- */
 void list_sessions(void)
 {
     FILE *f = fopen(STATE_FILE, "r");
@@ -161,14 +138,10 @@ void list_sessions(void)
     }
     else
     {
-        /* Simple display of raw JSON for now */
-        /* Dashboard will parse this properly */
         printf("%s\n", buffer);
     }
     printf("\n");
 }
-
-/* ---------- CLI Commands ---------- */
 
 void create_default_policy(void)
 {
@@ -180,9 +153,6 @@ void create_default_policy(void)
     }
 
     fprintf(f,
-        "# AI Sandbox Security Policy\n"
-        "\n"
-        "# Files/directories to hide from the sandbox\n"
         "protected_files:\n"
         "  - ~/.ssh\n"
         "  - ~/.env\n"
@@ -190,21 +160,17 @@ void create_default_policy(void)
         "  - ~/.gnupg\n"
         "  - ~/.config/gh\n"
         "\n"
-        "# Network policy: DENY (whitelist only) or ALLOW (all)\n"
         "default_network_policy: DENY\n"
         "\n"
-        "# Whitelisted domains/IPs (when policy is DENY)\n"
         "network_whitelist:\n"
         "  - github.com\n"
         "  - api.github.com\n"
         "  - pypi.org\n"
         "\n"
-        "# Set to true to allow all HTTPS regardless of whitelist\n"
         "allow_all_https: false\n"
         "\n"
-        "# System calls to block (advanced)\n"
         "blocked_syscalls:\n"
-        "  - ptrace    # Prevents debugging/tracing\n");
+        "  - ptrace\n");
 
     fclose(f);
     printf("[+] Default policy.yaml created\n");
@@ -212,10 +178,6 @@ void create_default_policy(void)
     printf("[+] Edit blocked_syscalls to customize syscall restrictions\n");
 }
 
-/*
- * Signal synchronization between parent and child
- * Child waits for SIGUSR1 from parent after veth is configured
- */
 static volatile sig_atomic_t veth_ready = 0;
 
 void sigusr1_handler(int sig)
@@ -228,7 +190,6 @@ void run_sandbox(const char *policy_file)
 {
     check_root();
     
-    /* Load policy first (before fork) */
     Policy policy;
     if (load_policy(policy_file, &policy) != 0)
     {
@@ -238,10 +199,8 @@ void run_sandbox(const char *policy_file)
     
     print_policy(&policy);
     
-    /* Setup signal handler for synchronization */
     signal(SIGUSR1, sigusr1_handler);
     
-    /* Fork: parent stays in host namespace, child enters sandbox */
     pid_t pid = fork();
     
     if (pid < 0)
@@ -252,31 +211,22 @@ void run_sandbox(const char *policy_file)
     
     if (pid == 0)
     {
-        /* ======== CHILD PROCESS (becomes the sandbox) ======== */
-        
-        /* 1. Create mount namespace for filesystem isolation */
         create_mount_namespace();
         
-        /* 2. Create network namespace */
         create_network_namespace();
         
-        /* 3. Signal parent that we're in the new namespace */
         kill(getppid(), SIGUSR1);
         
-        /* 4. Wait for parent to setup veth pair */
         printf("[*] Waiting for network configuration...\n");
         while (!veth_ready)
         {
-            usleep(10000); /* 10ms */
+            usleep(10000);
         }
         
-        /* 5. Configure network inside sandbox */
         setup_sandbox_network();
         
-        /* 6. Apply firewall rules (inside sandbox namespace) */
         setup_firewall_with_policy(&policy);
         
-        /* 7. Enforce file restrictions */
         const char *user = get_real_user();
         
         for (int i = 0; i < policy.protected_count; i++)
@@ -305,10 +255,8 @@ void run_sandbox(const char *policy_file)
             }
         }
         
-        /* 8. Apply seccomp filter (syscall restrictions) */
         setup_seccomp_filter(&policy);
         
-        /* 9. Launch sandbox shell */
         printf("[+] Launching sandboxed shell...\n");
         printf("===========================================\n");
         printf("  AI SANDBOX ACTIVE\n");
@@ -327,19 +275,14 @@ void run_sandbox(const char *policy_file)
     }
     else
     {
-        /* ======== PARENT PROCESS (stays in host namespace) ======== */
-        
-        /* Wait for child to enter new namespace */
         printf("[*] Parent: waiting for child to create namespace...\n");
         while (!veth_ready)
         {
-            usleep(10000); /* 10ms */
+            usleep(10000);
         }
         
-        /* Small delay to ensure namespace is fully established */
-        usleep(100000); /* 100ms */
+        usleep(100000);
         
-        /* Setup veth pair from host side */
         if (setup_veth_from_host(pid) != 0)
         {
             fprintf(stderr, "[!] Failed to setup veth pair\n");
@@ -347,10 +290,8 @@ void run_sandbox(const char *policy_file)
             exit(EXIT_FAILURE);
         }
         
-        /* Setup NAT for internet access */
         setup_nat();
         
-        /* Register session for dashboard tracking */
         char cwd[512];
         if (getcwd(cwd, sizeof(cwd)) == NULL)
         {
@@ -358,14 +299,11 @@ void run_sandbox(const char *policy_file)
         }
         register_session(pid, policy_file, get_real_user(), cwd);
         
-        /* Signal child that veth is ready */
         kill(pid, SIGUSR1);
         
-        /* Wait for child (sandbox) to exit */
         int status;
         waitpid(pid, &status, 0);
         
-        /* Cleanup */
         printf("[+] Cleaning up network...\n");
         cleanup_veth();
         unregister_session(pid);
@@ -380,8 +318,6 @@ void destroy_sandbox(void)
     cleanup_veth();
     printf("[+] Cleanup complete\n");
 }
-
-/* ---------- MAIN ---------- */
 
 int main(int argc, char *argv[])
 {
@@ -411,7 +347,6 @@ int main(int argc, char *argv[])
     }
     else if (strcmp(argv[1], "gui") == 0)
     {
-        /* Launch the web dashboard */
         printf("[+] Launching AI Sandbox Dashboard...\n");
         int ret = system("ai-sandbox-gui");
         if (ret != 0)

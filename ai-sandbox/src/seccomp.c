@@ -1,9 +1,4 @@
-/*
- * seccomp.c - System call filtering using seccomp-bpf
- *
- * Uses libseccomp to create a filter that blocks specified syscalls.
- * Blocked syscalls return EPERM (Operation not permitted).
- */
+
 
 #include <stdio.h>
 #include <string.h>
@@ -11,10 +6,6 @@
 #include <seccomp.h>
 #include "seccomp.h"
 
-/*
- * Map syscall name string to syscall number
- * libseccomp provides seccomp_syscall_resolve_name() for this
- */
 static int get_syscall_number(const char *name)
 {
     int syscall_nr = seccomp_syscall_resolve_name(name);
@@ -26,16 +17,7 @@ static int get_syscall_number(const char *name)
     return syscall_nr;
 }
 
-/*
- * Setup seccomp filter based on policy
- *
- * HOW IT WORKS:
- * 1. Create a seccomp filter context with default ALLOW action
- * 2. For each blocked syscall in policy, add ERRNO rule
- * 3. Load the filter into the kernel
- *
- * The filter persists across exec() due to SCMP_FLTATR_CTL_NNP
- */
+
 int setup_seccomp_filter(const Policy *policy)
 {
     if (policy->blocked_syscalls_count == 0)
@@ -68,7 +50,7 @@ int setup_seccomp_filter(const Policy *policy)
             continue;
         }
 
-        /* Add rule: if this syscall is called, return EPERM */
+        //return EPERM
         int rc = seccomp_rule_add(ctx, SCMP_ACT_ERRNO(EPERM), syscall_nr, 0);
         if (rc < 0)
         {
@@ -99,7 +81,7 @@ int setup_seccomp_filter(const Policy *policy)
 
     printf("[+] Seccomp filter loaded: %d syscalls blocked\n", blocked);
 
-    /* Release the context (filter remains active in kernel) */
+
     seccomp_release(ctx);
 
     return 0;

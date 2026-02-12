@@ -23,7 +23,8 @@ allow_all_https: false
 # System calls to block (advanced - use with caution)
 # These syscalls will return "Operation not permitted" inside sandbox
 blocked_syscalls:
-  - ptrace       # Prevents debugging/tracing other processes
+  - ptrace  
+  - cat     # Prevents debugging/tracing other processes
   # - reboot     # Prevents system reboot
   # - mount      # Prevents mounting filesystems
   # - umount2    # Prevents unmounting filesystems

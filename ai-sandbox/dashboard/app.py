@@ -1,8 +1,3 @@
-"""
-AI Sandbox Dashboard - Streamlit Application
-A modern, user-friendly interface for managing AI sandboxes
-"""
-
 import streamlit as st
 import json
 import os
@@ -11,11 +6,9 @@ import yaml
 from pathlib import Path
 from datetime import datetime
 
-# Configuration
 STATE_FILE = "/var/lib/ai-sandbox/sessions.json"
 DEFAULT_POLICY_PATH = "/etc/ai-sandbox/default-policy.yaml"
 
-# Page configuration
 st.set_page_config(
     page_title="AI Sandbox Dashboard",
     page_icon="",
@@ -23,15 +16,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for modern dark theme
 st.markdown("""
 <style>
-    /* Dark theme with gradient accents */
     .stApp {
         background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
     }
     
-    /* Card styling */
     .sandbox-card {
         background: linear-gradient(145deg, #1e2a4a, #182035);
         border-radius: 16px;
@@ -47,7 +37,6 @@ st.markdown("""
         transition: all 0.3s ease;
     }
     
-    /* Status indicators */
     .status-running {
         color: #10b981;
         font-weight: 600;
@@ -58,7 +47,6 @@ st.markdown("""
         font-weight: 600;
     }
     
-    /* Headers */
     .main-header {
         background: linear-gradient(90deg, #6366f1, #8b5cf6);
         -webkit-background-clip: text;
@@ -68,7 +56,6 @@ st.markdown("""
         margin-bottom: 0.5rem;
     }
     
-    /* Metric cards */
     .metric-card {
         background: rgba(99, 102, 241, 0.1);
         border-radius: 12px;
@@ -88,7 +75,6 @@ st.markdown("""
         font-size: 0.875rem;
     }
     
-    /* Button styling */
     .stButton > button {
         background: linear-gradient(90deg, #6366f1, #8b5cf6);
         color: white;
@@ -104,39 +90,63 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
     }
     
-    /* Sidebar styling */
     section[data-testid="stSidebar"] {
         background: linear-gradient(180deg, #1e2a4a 0%, #182035 100%);
         border-right: 1px solid rgba(99, 102, 241, 0.2);
     }
     
-    /* Code blocks */
     .stCodeBlock {
         background: #0d1117 !important;
         border-radius: 8px;
     }
     
-    /* Hide Streamlit branding */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
 
+def is_pid_running(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except (OSError, ProcessLookupError):
+        return False
+    except (TypeError, ValueError):
+        return False
+
+
 def load_sessions():
-    """Load active sessions from state file"""
     try:
         if os.path.exists(STATE_FILE):
             with open(STATE_FILE, 'r') as f:
                 data = json.load(f)
-                return data.get('sessions', [])
+                sessions = data.get('sessions', [])
+            
+            active_sessions = []
+            stale_found = False
+            
+            for session in sessions:
+                pid = session.get('pid')
+                if pid and is_pid_running(int(pid)):
+                    active_sessions.append(session)
+                else:
+                    stale_found = True
+            
+            if stale_found:
+                try:
+                    with open(STATE_FILE, 'w') as f:
+                        json.dump({'sessions': active_sessions}, f, indent=2)
+                except PermissionError:
+                    pass
+            
+            return active_sessions
     except (json.JSONDecodeError, PermissionError) as e:
         st.warning(f"Could not read sessions: {e}")
     return []
 
 
 def load_policy(policy_path):
-    """Load policy YAML file"""
     try:
         if os.path.exists(policy_path):
             with open(policy_path, 'r') as f:
@@ -147,7 +157,6 @@ def load_policy(policy_path):
 
 
 def save_policy(policy_path, content):
-    """Save policy YAML file"""
     try:
         with open(policy_path, 'w') as f:
             yaml.dump(content, f, default_flow_style=False, sort_keys=False)
@@ -158,27 +167,38 @@ def save_policy(policy_path, content):
 
 
 def get_policy_files():
-    """Find policy files in common locations"""
     policies = []
     
-    # Check current directory and common locations
-    search_paths = [
-        Path.cwd(),
-        Path.home(),
-        Path("/etc/ai-sandbox"),
-        Path.home() / "OS_EL" / "ai-sandbox"
+    direct_checks = [
+        Path.cwd() / "policy.yaml",
+        Path.home() / "policy.yaml",
+        Path("/etc/ai-sandbox/default-policy.yaml"),
+        Path.home() / "OS_EL" / "ai-sandbox" / "policy.yaml",
+        Path.home() / "OS_EL" / "tmp" / "policy.yaml",
     ]
     
-    for path in search_paths:
-        if path.exists():
-            for policy_file in path.glob("**/policy.yaml"):
-                policies.append(str(policy_file))
+    for policy_path in direct_checks:
+        if policy_path.exists():
+            policies.append(str(policy_path))
     
-    return list(set(policies))[:10]  # Limit to 10
+    shallow_search_dirs = [
+        Path.cwd(),
+        Path("/etc/ai-sandbox"),
+        Path.home() / "OS_EL",
+    ]
+    
+    for search_dir in shallow_search_dirs:
+        if search_dir.exists() and search_dir.is_dir():
+            try:
+                for policy_file in search_dir.glob("*/policy.yaml"):
+                    policies.append(str(policy_file))
+            except (PermissionError, OSError):
+                pass
+    
+    return list(set(policies))[:10]
 
 
 def render_sidebar():
-    """Render sidebar navigation"""
     with st.sidebar:
         st.markdown("## AI Sandbox")
         st.markdown("---")
@@ -191,7 +211,6 @@ def render_sidebar():
         
         st.markdown("---")
         
-        # Quick stats
         sessions = load_sessions()
         active_count = len([s for s in sessions if s.get('status') == 'running'])
         
@@ -205,11 +224,9 @@ def render_sidebar():
 
 
 def render_dashboard():
-    """Render main dashboard view"""
     st.markdown('<p class="main-header">AI Sandbox Dashboard</p>', unsafe_allow_html=True)
     st.markdown("Monitor and manage your isolated AI execution environments")
     
-    # Metrics row
     sessions = load_sessions()
     active = len([s for s in sessions if s.get('status') == 'running'])
     
@@ -250,37 +267,37 @@ def render_dashboard():
     
     st.markdown("---")
     
-    # Active sandboxes
-    st.markdown("### Active Sandbox Sessions")
+    st.markdown("### Sandbox Sessions")
     
-    if not sessions or active == 0:
-        st.info("No active sandboxes. Start one from the Quick Actions page!")
+    if not sessions:
+        st.info("No sandbox sessions found. Start one from the Quick Actions page!")
     else:
         for session in sessions:
-            if session.get('status') == 'running':
-                with st.container():
-                    st.markdown(f"""
-                    <div class="sandbox-card">
-                        <h4>Sandbox PID: {session.get('pid', 'N/A')}</h4>
-                        <p><strong>User:</strong> {session.get('user', 'unknown')}</p>
-                        <p><strong>Policy:</strong> <code>{session.get('policy', 'N/A')}</code></p>
-                        <p><strong>Directory:</strong> <code>{session.get('cwd', 'N/A')}</code></p>
-                        <p><strong>Started:</strong> {session.get('started', 'N/A')}</p>
-                        <p><span class="status-running">* Running</span></p>
-                    </div>
-                    """, unsafe_allow_html=True)
+            pid = session.get('pid')
+            is_running = is_pid_running(int(pid)) if pid else False
+            status_class = "status-running" if is_running else "status-stopped"
+            status_text = "● Running" if is_running else "○ Stopped"
+            
+            with st.container():
+                st.markdown(f"""
+                <div class="sandbox-card">
+                    <h4>Sandbox PID: {session.get('pid', 'N/A')}</h4>
+                    <p><strong>User:</strong> {session.get('user', 'unknown')}</p>
+                    <p><strong>Policy:</strong> <code>{session.get('policy', 'N/A')}</code></p>
+                    <p><strong>Directory:</strong> <code>{session.get('cwd', 'N/A')}</code></p>
+                    <p><strong>Started:</strong> {session.get('started', 'N/A')}</p>
+                    <p><span class="{status_class}">{status_text}</span></p>
+                </div>
+                """, unsafe_allow_html=True)
     
-    # Refresh button
     if st.button("Refresh"):
         st.rerun()
 
 
 def render_policy_editor():
-    """Render policy editor view"""
     st.markdown('<p class="main-header">Policy Editor</p>', unsafe_allow_html=True)
     st.markdown("View and edit sandbox security policies")
     
-    # Policy file selector
     policies = get_policy_files()
     
     col1, col2 = st.columns([3, 1])
@@ -309,7 +326,6 @@ def render_policy_editor():
         if policy:
             st.markdown("---")
             
-            # Visual editor
             tab1, tab2 = st.tabs(["Visual Editor", "Raw YAML"])
             
             with tab1:
@@ -347,7 +363,6 @@ def render_policy_editor():
                 
                 st.markdown("---")
                 
-                # Policy toggles
                 col1, col2 = st.columns(2)
                 
                 with col1:
@@ -370,7 +385,6 @@ def render_policy_editor():
                         st.success("Policy saved successfully!")
             
             with tab2:
-                # Raw YAML editor
                 with open(selected_policy, 'r') as f:
                     raw_yaml = f.read()
                 
@@ -383,7 +397,6 @@ def render_policy_editor():
                 
                 if st.button("Save YAML"):
                     try:
-                        # Validate YAML
                         yaml.safe_load(edited_yaml)
                         with open(selected_policy, 'w') as f:
                             f.write(edited_yaml)
@@ -395,7 +408,6 @@ def render_policy_editor():
 
 
 def render_quick_actions():
-    """Render quick actions view"""
     st.markdown('<p class="main-header">Quick Actions</p>', unsafe_allow_html=True)
     st.markdown("Common operations for managing AI sandboxes")
     
@@ -470,22 +482,17 @@ def render_quick_actions():
     st.markdown("### Command Reference")
     
     st.code("""
-# Create a new policy file
 ai-run create
 
-# Start sandbox with policy
 sudo ai-run run policy.yaml
 
-# List active sessions
 ai-run list
 
-# Cleanup resources
 sudo ai-run destroy
     """, language="bash")
 
 
 def render_help():
-    """Render help view"""
     st.markdown('<p class="main-header">Help & Documentation</p>', unsafe_allow_html=True)
     
     st.markdown("""
@@ -512,20 +519,16 @@ def render_help():
     ## Policy Configuration
     
     ```yaml
-    # Files to hide from sandbox
     protected_files:
       - ~/.ssh
       - ~/.aws
     
-    # Allowed network destinations
     network_whitelist:
       - github.com
       - api.openai.com
     
-    # Block everything except whitelist
     default_network_policy: DENY
     
-    # Set to true to allow all HTTPS
     allow_all_https: false
     ```
     
@@ -558,7 +561,6 @@ def render_help():
 
 
 def main():
-    """Main application entry point"""
     page = render_sidebar()
     
     if page == "Dashboard":
